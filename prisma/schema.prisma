@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  name       String
+  avatarUrl  String?
+  password   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  items         Item[]
+  shops         Shop[]
+  shoppingLists ShoppingList[]
+  expenses      Expense[]
+}
+
+model Category {
+  id    String @id @default(cuid())
+  name  String @unique
+  icon  String
+  color String
+
+  items Item[]
+}
+
+model Item {
+  id         String    @id @default(cuid())
+  userId     String
+  categoryId String?
+  name       String
+  unit       String
+  notes      String?
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id])
+  category   Category?  @relation(fields: [categoryId], references: [id])
+  listItems  ListItem[]
+  prices     ItemPrice[]
+}
+
+model Shop {
+  id        String    @id @default(cuid())
+  userId    String
+  name      String
+  address   String?
+  lat       Float?
+  lng       Float?
+  category  String?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id])
+  shoppingLists ShoppingList[]
+  prices        ItemPrice[]
+}
+
+model ItemPrice {
+  id         String   @id @default(cuid())
+  itemId     String
+  shopId     String
+  price      Decimal  @db.Decimal(10, 2)
+  recordedAt DateTime @default(now())
+
+  item Item @relation(fields: [itemId], references: [id])
+  shop Shop @relation(fields: [shopId], references: [id])
+}
+
+model ShoppingList {
+  id        String            @id @default(cuid())
+  userId    String
+  shopId    String?
+  name      String
+  budget    Decimal?          @db.Decimal(10, 2)
+  status    ShoppingListStatus @default(DRAFT)
+  date      DateTime?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id])
+  shop      Shop?      @relation(fields: [shopId], references: [id])
+  items     ListItem[]
+  expense   Expense?
+}
+
+enum ShoppingListStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+}
+
+model ListItem {
+  id           String   @id @default(cuid())
+  listId       String
+  itemId       String
+  qty          Float    @default(1)
+  estPrice     Decimal? @db.Decimal(10, 2)
+  actualPrice  Decimal? @db.Decimal(10, 2)
+  checked      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  list ShoppingList @relation(fields: [listId], references: [id])
+  item Item         @relation(fields: [itemId], references: [id])
+}
+
+model Expense {
+  id           String   @id @default(cuid())
+  listId       String   @unique
+  userId       String
+  totalSpent   Decimal  @db.Decimal(10, 2)
+  receiptUrl   String?
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  list ShoppingList @relation(fields: [listId], references: [id])
+  user User         @relation(fields: [userId], references: [id])
+}
