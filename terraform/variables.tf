@@ -16,6 +16,8 @@ variable "cluster_version" {
   default     = "1.29"
 }
 
+# ── VPC ───────────────────────────────────────────────────────────────────
+
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string
@@ -34,6 +36,8 @@ variable "public_subnets" {
   default     = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
 }
 
+# ── EKS node group ────────────────────────────────────────────────────────
+
 variable "node_instance_types" {
   description = "EC2 instance types for the EKS managed node group"
   type        = list(string)
@@ -41,22 +45,24 @@ variable "node_instance_types" {
 }
 
 variable "node_group_min_size" {
-  description = "Minimum number of nodes in the node group"
+  description = "Minimum number of nodes"
   type        = number
   default     = 1
 }
 
 variable "node_group_max_size" {
-  description = "Maximum number of nodes in the node group"
+  description = "Maximum number of nodes"
   type        = number
   default     = 5
 }
 
 variable "node_group_desired_size" {
-  description = "Desired number of nodes in the node group"
+  description = "Desired number of nodes"
   type        = number
   default     = 2
 }
+
+# ── ECR ───────────────────────────────────────────────────────────────────
 
 variable "ecr_api_repo_name" {
   description = "ECR repository name for the API image"
@@ -70,18 +76,27 @@ variable "ecr_web_repo_name" {
   default     = "grocery-tracker-web"
 }
 
-variable "environment" {
-  description = "Deployment environment (dev, staging, production)"
-  type        = string
-  default     = "production"
+variable "ecr_images_to_keep" {
+  description = "Number of images to retain per ECR repository"
+  type        = number
+  default     = 10
 }
 
+# ── IAM ───────────────────────────────────────────────────────────────────
+
+variable "github_repositories" {
+  description = "GitHub repos allowed to assume the CI IAM role (format: ORG/REPO)"
+  type        = list(string)
+  default     = ["YOUR_ORG/grocery-tracker"]
+}
+
+# ── Common ────────────────────────────────────────────────────────────────
+
 variable "tags" {
-  description = "Common tags to apply to all resources"
+  description = "Common tags applied to all resources via the AWS provider default_tags"
   type        = map(string)
   default = {
-    Project     = "grocery-tracker"
-    ManagedBy   = "terraform"
-    Environment = "production"
+    Project   = "grocery-tracker"
+    ManagedBy = "terraform"
   }
 }

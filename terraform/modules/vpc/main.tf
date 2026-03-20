@@ -11,7 +11,7 @@ module "vpc" {
 
   # Enable NAT Gateway so private subnets can reach the internet (for ECR pulls)
   enable_nat_gateway     = true
-  single_nat_gateway     = false # one per AZ for HA
+  single_nat_gateway     = false
   one_nat_gateway_per_az = true
 
   enable_dns_hostnames = true
@@ -19,12 +19,12 @@ module "vpc" {
 
   # Required tags for EKS to discover subnets
   public_subnet_tags = {
-    "kubernetes.io/role/elb"                          = "1"
-    "kubernetes.io/cluster/${var.cluster_name}"       = "shared"
+    "kubernetes.io/role/elb"                    = "1"
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
   }
 
   private_subnet_tags = {
-    "kubernetes.io/role/internal-elb"                 = "1"
-    "kubernetes.io/cluster/${var.cluster_name}"       = "shared"
+    "kubernetes.io/role/internal-elb"           = "1"
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
   }
 }

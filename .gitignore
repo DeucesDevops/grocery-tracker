@@ -34,3 +34,9 @@ redis-data/
 
 # Turbo
 .turbo/
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
+terraform/*.tfplan

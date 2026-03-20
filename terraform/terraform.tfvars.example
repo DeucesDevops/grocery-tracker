@@ -1,0 +1,31 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored — never commit it.
+
+aws_region   = "us-east-1"
+cluster_name = "grocery-tracker-cluster"
+
+# EKS
+cluster_version         = "1.29"
+node_instance_types     = ["t3.medium"]
+node_group_min_size     = 1
+node_group_max_size     = 5
+node_group_desired_size = 2
+
+# VPC
+vpc_cidr        = "10.0.0.0/16"
+private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+
+# ECR
+ecr_api_repo_name  = "grocery-tracker-api"
+ecr_web_repo_name  = "grocery-tracker-web"
+ecr_images_to_keep = 10
+
+# IAM — replace with your GitHub org/repo
+github_repositories = ["YOUR_ORG/grocery-tracker"]
+
+# Tags applied to every resource
+tags = {
+  Project   = "grocery-tracker"
+  ManagedBy = "terraform"
+}
