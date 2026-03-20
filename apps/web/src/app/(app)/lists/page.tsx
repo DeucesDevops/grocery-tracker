@@ -1,4 +1,8 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, MoreHorizontal, ShoppingBag, MapPin, Clock, Circle, ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -12,14 +16,35 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
+import { CreateListModal } from "@/components/modals/create-list-modal"
 
-export default async function ListsPage() {
-  let lists: any[] = [];
-  try {
-    lists = await api.lists.getAll();
-  } catch (error) {
-    console.error("Failed to fetch lists:", error);
+export default function ListsPage() {
+  const router = useRouter();
+  const [lists, setLists] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+
+  useEffect(() => {
+    fetchLists();
+  }, []);
+
+  const fetchLists = async () => {
+    try {
+      setLoading(true);
+      const data = await api.lists.getAll();
+      setLists(data);
+    } catch (error) {
+      console.error("Failed to fetch lists:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createList = () => {
+    setIsModalOpen(true)
   }
+
+  if (loading) return <div className="p-8 text-center">Loading lists...</div>;
 
   const activeLists = lists.filter(l => l.status === 'ACTIVE');
   const draftLists = lists.filter(l => l.status === 'DRAFT');
@@ -34,7 +59,7 @@ export default async function ListsPage() {
             Manage your past and upcoming grocery lists.
           </p>
         </div>
-        <Button className="gap-2">
+        <Button onClick={createList} className="gap-2">
           <Plus className="h-4 w-4" /> Create New List
         </Button>
       </div>
@@ -132,6 +157,12 @@ export default async function ListsPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <CreateListModal 
+        open={isModalOpen} 
+        onOpenChange={setIsModalOpen} 
+        onSuccess={fetchLists}
+      />
     </div>
   );
 }

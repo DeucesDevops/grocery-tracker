@@ -29,4 +29,25 @@ export class ItemsController {
       next(error);
     }
   }
+
+  static async create(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { name, unit, categoryId, notes } = req.body;
+      const user = await prisma.user.findFirst();
+      if (!user) throw new Error('No user found');
+
+      const item = await prisma.item.create({
+        data: {
+          name,
+          unit: unit || 'each',
+          categoryId: categoryId || null,
+          notes,
+          userId: user.id
+        }
+      });
+      res.status(201).json(item);
+    } catch (error) {
+      next(error);
+    }
+  }
 }

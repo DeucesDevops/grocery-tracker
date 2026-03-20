@@ -2,10 +2,12 @@ import Link from "next/link";
 import { LayoutDashboard, ListTodo, MapPin, Package, PieChart, Settings, LogOut } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -41,26 +43,31 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="flex items-center gap-4">
+          <ThemeToggle />
           <DropdownMenu>
-            <DropdownMenuTrigger>
-              <Avatar className="h-8 w-8 border border-border cursor-pointer">
-                <AvatarFallback className="bg-primary/10 text-primary">JD</AvatarFallback>
-              </Avatar>
-            </DropdownMenuTrigger>
+            <DropdownMenuTrigger render={
+              <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0 border border-border cursor-pointer overflow-hidden">
+                <Avatar className="h-full w-full">
+                  <AvatarFallback className="bg-primary/10 text-primary font-bold">JD</AvatarFallback>
+                </Avatar>
+              </Button>
+            } />
             <DropdownMenuContent className="w-56" align="end">
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">John Doe</p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    john.doe@example.com
-                  </p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">John Doe</p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      john.doe@example.com
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950">
                 <LogOut className="mr-2 h-4 w-4" />

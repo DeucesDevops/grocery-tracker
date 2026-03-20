@@ -1,5 +1,8 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, MapPin, Navigation, Tag, ExternalLink } from "lucide-react";
+import { Plus, Store, MapPin, Tag, Search, Filter, MoreVertical, Globe, ExternalLink } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,14 +14,34 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { api } from "@/lib/api";
+import { AddShopModal } from "@/components/modals/add-shop-modal";
 
-export default async function ShopsPage() {
-  let shops: any[] = [];
-  try {
-    shops = await api.shops.getAll();
-  } catch (error) {
-    console.error("Failed to fetch shops:", error);
-  }
+export default function ShopsPage() {
+  const [shops, setShops] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetchShops();
+  }, []);
+
+  const fetchShops = async () => {
+    try {
+      setLoading(true);
+      const data = await api.shops.getAll();
+      setShops(data);
+    } catch (error) {
+      console.error("Failed to fetch shops:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addShop = () => {
+    setIsModalOpen(true)
+  };
+
+  if (loading) return <div className="p-8 text-center">Loading shops...</div>;
 
   return (
     <div className="flex flex-col gap-8 max-w-6xl mx-auto">
@@ -29,7 +52,7 @@ export default async function ShopsPage() {
             Manage your frequently visited stores and compare prices.
           </p>
         </div>
-        <Button className="gap-2">
+        <Button onClick={addShop} className="gap-2">
           <Plus className="h-4 w-4" /> Add New Shop
         </Button>
       </div>
@@ -55,7 +78,7 @@ export default async function ShopsPage() {
                 </div>
                 <CardTitle className="text-xl mt-4 shrink-0">{shop.name}</CardTitle>
                 <CardDescription className="flex items-center gap-1 mt-1">
-                  <Navigation className="h-3 w-3" /> Location set
+                  <MapPin className="h-3 w-3" /> Location set
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -81,6 +104,12 @@ export default async function ShopsPage() {
           </div>
         )}
       </div>
+
+      <AddShopModal 
+        open={isModalOpen} 
+        onOpenChange={setIsModalOpen} 
+        onSuccess={fetchShops}
+      />
     </div>
-  );
+  )
 }

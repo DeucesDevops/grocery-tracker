@@ -27,4 +27,24 @@ export class ShopsController {
       next(error);
     }
   }
+
+  static async create(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { name, address, category } = req.body;
+      const user = await prisma.user.findFirst();
+      if (!user) throw new Error('No user found');
+
+      const shop = await prisma.shop.create({
+        data: {
+          name,
+          address,
+          category,
+          userId: user.id
+        }
+      });
+      res.status(201).json(shop);
+    } catch (error) {
+      next(error);
+    }
+  }
 }

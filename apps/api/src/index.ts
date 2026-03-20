@@ -1,14 +1,15 @@
+import dotenv from 'dotenv';
+import path from 'path';
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import itemsRoutes from './routes/items';
 import shopsRoutes from './routes/shops';
 import listsRoutes from './routes/lists';
 import dashboardRoutes from './routes/dashboard';
 import { requestLogger } from './middlewares/logger';
 import { errorHandler } from './middlewares/error.handler';
-
-dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5001;

@@ -46,9 +46,11 @@ export default async function DashboardPage() {
           <Button variant="outline" className="hidden sm:flex">
             Scan Receipt
           </Button>
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" /> New List
-          </Button>
+          <Link href="/lists">
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" /> New List
+            </Button>
+          </Link>
         </div>
       </div>
 

@@ -1,4 +1,7 @@
-import { Plus, Package, Search, Filter } from "lucide-react";
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { Plus, Package, Tag, Layers, Search, Filter, MoreVertical, Edit2, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,14 +15,34 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api } from "@/lib/api";
+import { AddItemModal } from "@/components/modals/add-item-modal";
 
-export default async function ItemsPage() {
-  let items: any[] = [];
-  try {
-    items = await api.items.getAll();
-  } catch (error) {
-    console.error("Failed to fetch items:", error);
+export default function ItemsPage() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetchItems();
+  }, []);
+
+  const fetchItems = async () => {
+    try {
+      setLoading(true);
+      const data = await api.items.getAll();
+      setItems(data);
+    } catch (error) {
+      console.error("Failed to fetch items:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addItem = () => {
+    setIsModalOpen(true)
   }
+
+  if (loading) return <div className="p-8 text-center">Loading items...</div>;
 
   return (
     <div className="flex flex-col gap-8 max-w-6xl mx-auto">
@@ -30,7 +53,7 @@ export default async function ItemsPage() {
             Build your personal database of grocery items.
           </p>
         </div>
-        <Button className="gap-2">
+        <Button onClick={addItem} className="gap-2">
           <Plus className="h-4 w-4" /> Add New Item
         </Button>
       </div>
@@ -96,6 +119,12 @@ export default async function ItemsPage() {
           </TableBody>
         </Table>
       </div>
+
+      <AddItemModal 
+        open={isModalOpen} 
+        onOpenChange={setIsModalOpen} 
+        onSuccess={fetchItems}
+      />
     </div>
-  );
+  )
 }
