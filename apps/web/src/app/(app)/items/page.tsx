@@ -11,8 +11,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { api } from "@/lib/api";
 
-export default function ItemsPage() {
+export default async function ItemsPage() {
+  let items: any[] = [];
+  try {
+    items = await api.items.getAll();
+  } catch (error) {
+    console.error("Failed to fetch items:", error);
+  }
+
   return (
     <div className="flex flex-col gap-8 max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -51,76 +59,40 @@ export default function ItemsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow>
-              <TableCell className="font-medium flex items-center gap-3">
-                <div className="h-8 w-8 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
-                  <Package className="h-4 w-4" />
-                </div>
-                Organic Milk 2L
-              </TableCell>
-              <TableCell><Badge variant="secondary" className="font-normal shadow-none">Dairy</Badge></TableCell>
-              <TableCell className="text-muted-foreground">Bottle</TableCell>
-              <TableCell className="text-right">
-                <div className="font-medium">$3.50</div>
-                <div className="text-xs text-muted-foreground">at Aldi</div>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-medium flex items-center gap-3">
-                <div className="h-8 w-8 rounded bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600">
-                  <Package className="h-4 w-4" />
-                </div>
-                Avocados (3 pack)
-              </TableCell>
-              <TableCell><Badge variant="secondary" className="font-normal shadow-none">Produce</Badge></TableCell>
-              <TableCell className="text-muted-foreground">Pack</TableCell>
-              <TableCell className="text-right">
-                <div className="font-medium">$4.80</div>
-                <div className="text-xs text-muted-foreground">at Trader Joe's</div>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-medium flex items-center gap-3">
-                <div className="h-8 w-8 rounded bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600">
-                  <Package className="h-4 w-4" />
-                </div>
-                Sourdough Bread
-              </TableCell>
-              <TableCell><Badge variant="secondary" className="font-normal shadow-none">Bakery</Badge></TableCell>
-              <TableCell className="text-muted-foreground">Loaf</TableCell>
-              <TableCell className="text-right">
-                <div className="font-medium">$5.50</div>
-                <div className="text-xs text-muted-foreground">at Whole Foods</div>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-medium flex items-center gap-3">
-                <div className="h-8 w-8 rounded bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600">
-                  <Package className="h-4 w-4" />
-                </div>
-                Chicken Breast
-              </TableCell>
-              <TableCell><Badge variant="secondary" className="font-normal shadow-none">Meat</Badge></TableCell>
-              <TableCell className="text-muted-foreground">kg</TableCell>
-              <TableCell className="text-right">
-                <div className="font-medium">$12.00</div>
-                <div className="text-xs text-muted-foreground">at Aldi</div>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-medium flex items-center gap-3">
-                <div className="h-8 w-8 rounded bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600">
-                  <Package className="h-4 w-4" />
-                </div>
-                Pasta Sauce
-              </TableCell>
-              <TableCell><Badge variant="secondary" className="font-normal shadow-none">Pantry</Badge></TableCell>
-              <TableCell className="text-muted-foreground">Jar</TableCell>
-              <TableCell className="text-right">
-                <div className="font-medium">$2.90</div>
-                <div className="text-xs text-muted-foreground">at Tesco Express</div>
-              </TableCell>
-            </TableRow>
+            {items.length > 0 ? items.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell className="font-medium flex items-center gap-3">
+                  <div className="h-8 w-8 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+                    <Package className="h-4 w-4" />
+                  </div>
+                  {item.name}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className="font-normal shadow-none">
+                    {item.category?.name || 'Uncategorized'}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground">{item.unit}</TableCell>
+                <TableCell className="text-right">
+                  <div className="font-medium">
+                    {item.prices && item.prices.length > 0 
+                      ? `$${Math.min(...item.prices.map((p: any) => Number(p.price))).toFixed(2)}`
+                      : 'N/A'}
+                  </div>
+                  {item.prices && item.prices.length > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      at {item.prices.sort((a: any, b: any) => Number(a.price) - Number(b.price))[0].shop?.name}
+                    </div>
+                  )}
+                </TableCell>
+              </TableRow>
+            )) : (
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                  No items found. Add your first item to get started!
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>

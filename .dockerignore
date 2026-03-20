@@ -1,0 +1,24 @@
+.git
+.gitignore
+*.md
+
+# Dependencies (will be installed inside container)
+node_modules
+**/node_modules
+
+# Build outputs
+**/dist
+**/.next
+
+# Env files — pass secrets via docker-compose environment, not baked into image
+**/.env
+**/.env.*
+!**/.env.example
+
+# Turbo cache
+.turbo
+**/.turbo
+
+# Dev tools
+.vscode
+.idea

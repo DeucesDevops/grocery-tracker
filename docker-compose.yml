@@ -2,8 +2,8 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: grocery_tracker_user
+      POSTGRES_PASSWORD: grocery_tracker_password
       POSTGRES_DB: grocery_tracker
     ports:
       - "5433:5432"
@@ -14,6 +14,46 @@ services:
     image: redis:7.2-alpine
     ports:
       - "6379:6379"
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: you@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "80:80"
+    depends_on:
+      - postgres
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "5002:5001"
+    environment:
+      DATABASE_URL: "postgresql://grocery_tracker_user:grocery_tracker_password@postgres:5432/grocery_tracker"
+      REDIS_URL: "redis://redis:6379"
+      JWT_SECRET: "hu7Wy4i0V9gTbD7BBAUMI8bmqMbZz7IzSz4UFvF64gk="
+      JWT_EXPIRES_IN: "7d"
+      PORT: 5001
+    depends_on:
+      - postgres
+      - redis
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      NEXTAUTH_URL: "http://localhost:3005"
+      NEXTAUTH_SECRET: "hu7Wy4i0V9gTbD7BBAUMI8bmqMbZz7IzSz4UFvF64gk="
+      NEXT_PUBLIC_API_URL: "http://localhost:5001/api"
+    depends_on:
+      - api
 
 volumes:
   postgres_data:

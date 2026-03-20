@@ -82,7 +82,7 @@ export default function ListDetailPage({ params }: { params: { id: string } }) {
               <Share className="h-4 w-4" /> Share
             </Button>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+              <DropdownMenuTrigger>
                 <Button variant="ghost" size="icon">
                   <MoreVertical className="h-5 w-5" />
                 </Button>

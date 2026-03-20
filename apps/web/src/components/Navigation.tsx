@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function Navigation() {
   return (
@@ -23,15 +24,18 @@ export function Navigation() {
             </Link>
           </nav>
         </div>
-        <div className="flex items-center gap-4">
-          <Link href="/auth/login">
-            <Button variant="ghost" size="sm">
-              Log in
-            </Button>
-          </Link>
-          <Link href="/auth/register">
-            <Button size="sm">Get Started</Button>
-          </Link>
+        <div className="flex items-center gap-2 sm:gap-4">
+          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <Link href="/auth/login">
+              <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
+                Log in
+              </Button>
+            </Link>
+            <Link href="/auth/register">
+              <Button size="sm">Get Started</Button>
+            </Link>
+          </div>
         </div>
       </div>
     </header>
