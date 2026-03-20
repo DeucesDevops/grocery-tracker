@@ -1,0 +1,17 @@
+# Hadolint configuration — Dockerfile linting rules
+# Docs: https://github.com/hadolint/hadolint
+
+failure-threshold: warning
+
+# Rules to ignore (with justification)
+ignore:
+  - DL3008  # apt-get without version pinning (acceptable for alpine base images we control)
+  - DL3018  # apk add without version pinning (same justification)
+
+# Trusted base image registries
+trustedRegistries:
+  - docker.io
+  - public.ecr.aws
+
+# Enforce non-root USER instruction
+# (already set in all Dockerfiles, kept here as a reminder)

@@ -1,0 +1,62 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grocery-tracker
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: grocery-tracker
+  # Finalizer ensures ArgoCD cleans up resources when the Application is deleted
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    # Replace with your actual repository URL
+    repoURL: https://github.com/YOUR_ORG/grocery-tracker.git
+    targetRevision: main
+    path: k8s
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: grocery-tracker
+
+  syncPolicy:
+    automated:
+      # Automatically prune resources no longer in git
+      prune: true
+      # Automatically sync when drift is detected
+      selfHeal: true
+      # Do NOT allow empty commits to trigger a sync
+      allowEmpty: false
+
+    syncOptions:
+      # Create namespace if it doesn't exist
+      - CreateNamespace=true
+      # Validate manifests with kubectl --dry-run before applying
+      - Validate=true
+      # Use server-side apply for cleaner diffs
+      - ServerSideApply=true
+      # Apply resources in dependency order (namespace first, etc.)
+      - ApplyOutOfSyncOnly=true
+
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Health checks for our custom resources
+  ignoreDifferences:
+    # Ignore the image tag field managed by CI (ArgoCD would otherwise detect drift)
+    - group: apps
+      kind: Deployment
+      name: api
+      jsonPointers:
+        - /spec/template/spec/containers/0/image
+    - group: apps
+      kind: Deployment
+      name: web
+      jsonPointers:
+        - /spec/template/spec/containers/0/image

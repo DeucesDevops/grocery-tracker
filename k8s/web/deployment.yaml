@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: grocery-tracker
+  labels:
+    app: web
+    app.kubernetes.io/part-of: grocery-tracker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: web
+          # CI pipeline updates this tag automatically
+          image: REPLACE_WITH_ECR_URL/grocery-tracker-web:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3005
+              protocol: TCP
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3005"
+            - name: NEXT_PUBLIC_API_URL
+              value: "/api"
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3005
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3005
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: next-cache
+              mountPath: /app/.next/cache
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir: {}

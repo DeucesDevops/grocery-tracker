@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: grocery-tracker
+  labels:
+    app: api
+    app.kubernetes.io/part-of: grocery-tracker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5001"
+        prometheus.io/path: "/api/metrics"
+    spec:
+      # Run as non-root
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+
+      # Allow time for in-flight requests to complete before pod is terminated
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: api
+          # CI pipeline updates this tag automatically
+          image: REPLACE_WITH_ECR_URL/grocery-tracker-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5001
+              protocol: TCP
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "5001"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: grocery-tracker-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: grocery-tracker-secrets
+                  key: redis-url
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: grocery-tracker-secrets
+                  key: jwt-secret
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 5001
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 5001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+          # Writable temp dir for Prisma query engine
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}

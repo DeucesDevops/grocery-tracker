@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: grocery-tracker
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: grocery-tracker
+spec:
+  # ClusterIP with headless DNS for StatefulSet stable hostname
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP

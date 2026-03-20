@@ -1,0 +1,10 @@
+# Snyk configuration
+# Docs: https://docs.snyk.io/snyk-cli/test-for-vulnerabilities/the-.snyk-file
+
+version: v1.25.0
+
+# Paths to ignore during scanning (e.g., test fixtures, vendored code)
+ignore: {}
+
+# Patch configuration (leave empty to use defaults)
+patch: {}

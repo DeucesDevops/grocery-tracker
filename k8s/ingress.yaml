@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grocery-tracker-ingress
+  namespace: grocery-tracker
+  labels:
+    app.kubernetes.io/part-of: grocery-tracker
+  annotations:
+    # AWS Load Balancer Controller annotations
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    # Redirect HTTP → HTTPS
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    # ACM certificate ARN — replace with your actual certificate
+    alb.ingress.kubernetes.io/certificate-arn: "REPLACE_WITH_ACM_CERTIFICATE_ARN"
+    # Health check
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+spec:
+  rules:
+    - host: grocery-tracker.example.com   # Replace with your domain
+      http:
+        paths:
+          # All traffic goes to Nginx, which proxies to api/web internally
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx
+                port:
+                  number: 80

@@ -1,0 +1,106 @@
+# Helm values for Grafana
+# Install: helm repo add grafana https://grafana.github.io/helm-charts
+#          helm install grafana grafana/grafana \
+#            -n monitoring --create-namespace \
+#            -f k8s/monitoring/grafana-values.yaml
+
+replicas: 1
+
+# Admin credentials — override via --set or a Kubernetes secret in production
+adminUser: admin
+adminPassword: "CHANGE_ME_IN_PRODUCTION"
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+persistence:
+  enabled: true
+  storageClassName: gp2
+  size: 5Gi
+
+# Expose Grafana via a LoadBalancer for external access
+service:
+  type: LoadBalancer
+
+# Auto-provision dashboards from ConfigMaps
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    searchNamespace: ALL
+  datasources:
+    enabled: true
+    label: grafana_datasource
+
+# Pre-configure Prometheus as the default datasource
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+        access: proxy
+        isDefault: true
+        jsonData:
+          timeInterval: "15s"
+
+# Pre-load community dashboards for EKS and Node.js
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+dashboards:
+  default:
+    # Kubernetes cluster overview
+    kubernetes-cluster:
+      gnetId: 7249
+      revision: 1
+      datasource: Prometheus
+
+    # Node exporter full
+    node-exporter:
+      gnetId: 1860
+      revision: 37
+      datasource: Prometheus
+
+    # Kubernetes deployment overview
+    k8s-deployments:
+      gnetId: 8588
+      revision: 1
+      datasource: Prometheus
+
+    # Node.js application metrics (if prom-client is added to API)
+    nodejs-app:
+      gnetId: 11159
+      revision: 1
+      datasource: Prometheus
+
+# Alerting — connect to Alertmanager
+alerting:
+  contactpoints.yaml:
+    secret:
+      apiVersion: 1
+      contactPoints:
+        - orgId: 1
+          name: Slack
+          receivers:
+            - uid: slack-receiver
+              type: slack
+              settings:
+                url: "REPLACE_WITH_SLACK_WEBHOOK_URL"
+                recipient: "#alerts"

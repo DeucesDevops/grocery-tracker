@@ -1,0 +1,96 @@
+name: CD – Deploy via ArgoCD
+
+on:
+  # Triggered after CI completes successfully on main/master
+  workflow_run:
+    workflows: ["CI – Security Quality Gates"]
+    types: [completed]
+    branches: ["main", "master"]
+
+  # Allow manual deploy with optional image tag override
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (defaults to latest)"
+        required: false
+        default: "latest"
+      environment:
+        description: "Target environment"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  deploy:
+    name: "Sync ArgoCD"
+    runs-on: ubuntu-latest
+    # Only deploy when the CI workflow succeeds (not just completes)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ secrets.EKS_CLUSTER_NAME }} \
+            --region ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o /usr/local/bin/argocd \
+            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login ${{ secrets.ARGOCD_SERVER }} \
+            --auth-token ${{ secrets.ARGOCD_TOKEN }} \
+            --insecure
+
+      - name: Sync ArgoCD Application
+        run: |
+          argocd app sync grocery-tracker \
+            --prune \
+            --timeout 300
+
+      - name: Wait for rollout to complete
+        run: |
+          argocd app wait grocery-tracker \
+            --health \
+            --timeout 300
+
+      - name: Verify deployment health
+        run: |
+          kubectl rollout status deployment/api -n grocery-tracker --timeout=120s
+          kubectl rollout status deployment/web -n grocery-tracker --timeout=120s
+
+      - name: Run smoke tests
+        run: |
+          INGRESS_IP=$(kubectl get ingress grocery-tracker-ingress \
+            -n grocery-tracker \
+            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+          # Wait for DNS propagation
+          sleep 10
+
+          # Basic API health check
+          curl -f "http://${INGRESS_IP}/api/health" || exit 1
+          echo "Smoke test passed: API is healthy"
