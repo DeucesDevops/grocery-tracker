@@ -1,0 +1,507 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Observability stack for Grocery Tracker
+#
+# Includes:
+#   - Prometheus  — scrapes /api/metrics on the api pod
+#   - Alertmanager — routes alerts to Slack
+#   - Grafana     — pre-provisioned dashboards (HTTP + Node.js)
+#
+# Access (after kubectl port-forward):
+#   Prometheus:   kubectl port-forward svc/prometheus   -n grocery-tracker 9090:9090
+#   Grafana:      kubectl port-forward svc/grafana       -n grocery-tracker 3001:3000
+#   Alertmanager: kubectl port-forward svc/alertmanager  -n grocery-tracker 9093:9093
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Prometheus ────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data-pvc
+  namespace: grocery-tracker
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: grocery-tracker
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager:9093']
+
+    rule_files:
+      - /etc/prometheus/rules/*.yml
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets: ['localhost:9090']
+
+      - job_name: grocery-tracker-api
+        metrics_path: /api/metrics
+        static_configs:
+          - targets: ['api:5001']
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: grocery-tracker
+data:
+  grocery-tracker-rules.yml: |
+    groups:
+      - name: grocery-tracker.availability
+        interval: 15s
+        rules:
+          - alert: ApiDown
+            expr: up{job="grocery-tracker-api"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Grocery Tracker API is unreachable"
+              description: "The API pod has been unreachable for more than 2 minutes."
+
+          - alert: HighRestartRate
+            expr: rate(kube_pod_container_status_restarts_total{namespace="grocery-tracker"}[15m]) > 0.1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ $labels.pod }} is restarting frequently"
+              description: "{{ $labels.pod }} has restarted more than once in the last 15 minutes."
+
+      - name: grocery-tracker.performance
+        interval: 30s
+        rules:
+          - alert: HighHttpErrorRate
+            expr: |
+              rate(grocery_tracker_http_request_duration_seconds_count{status_code=~"5.."}[5m])
+              /
+              rate(grocery_tracker_http_request_duration_seconds_count[5m])
+              > 0.05
+            for: 3m
+            labels:
+              severity: critical
+            annotations:
+              summary: "High HTTP error rate on Grocery Tracker API"
+              description: "More than 5% of requests are returning 5xx errors."
+
+          - alert: HighP95Latency
+            expr: |
+              histogram_quantile(0.95,
+                rate(grocery_tracker_http_request_duration_seconds_bucket[5m])
+              ) > 2
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High p95 latency on Grocery Tracker API"
+              description: "95th percentile response time is above 2 seconds."
+
+      - name: grocery-tracker.node
+        interval: 30s
+        rules:
+          - alert: HighHeapUsage
+            expr: |
+              grocery_tracker_nodejs_heap_size_used_bytes
+              /
+              grocery_tracker_nodejs_heap_size_total_bytes
+              > 0.85
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node.js heap above 85%"
+              description: "Consider increasing memory limits or investigating memory leaks."
+
+          - alert: HighEventLoopLag
+            expr: grocery_tracker_nodejs_eventloop_lag_seconds > 0.5
+            for: 3m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node.js event loop lag above 500ms"
+              description: "The event loop is blocked. Check for synchronous operations on the hot path."
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: grocery-tracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.48.0
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.retention.time=15d"
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: rules
+              mountPath: /etc/prometheus/rules
+            - name: data
+              mountPath: /prometheus
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits:   { cpu: "500m", memory: "1Gi" }
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: rules
+          configMap:
+            name: prometheus-rules
+        - name: data
+          persistentVolumeClaim:
+            claimName: prometheus-data-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: grocery-tracker
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+  type: ClusterIP
+
+# ── Alertmanager ──────────────────────────────────────────────────────────────
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-secrets
+  namespace: grocery-tracker
+type: Opaque
+stringData:
+  slack-webhook-url: "https://hooks.slack.com/services/REPLACE_ME"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: grocery-tracker
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+
+    route:
+      receiver: slack-notifications
+      group_by: [alertname]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+
+    receivers:
+      - name: slack-notifications
+        slack_configs:
+          - api_url_file: /etc/alertmanager/secrets/slack-webhook-url
+            channel: '#grocery-tracker-alerts'
+            send_resolved: true
+            title: '{{ if eq .Status "firing" }}🔴{{ else }}✅{{ end }} {{ .CommonAnnotations.summary }}'
+            text: |
+              {{ range .Alerts }}
+              *Alert:* {{ .Labels.alertname }}  |  *Severity:* {{ .Labels.severity }}
+              {{ .Annotations.description }}
+              {{ end }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: grocery-tracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:v0.27.0
+          args:
+            - "--config.file=/etc/alertmanager/alertmanager.yml"
+            - "--storage.path=/alertmanager"
+          ports:
+            - containerPort: 9093
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager
+            - name: secrets
+              mountPath: /etc/alertmanager/secrets
+              readOnly: true
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "100m", memory: "128Mi" }
+      volumes:
+        - name: config
+          configMap:
+            name: alertmanager-config
+        - name: secrets
+          secret:
+            secretName: alertmanager-secrets
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: grocery-tracker
+spec:
+  selector:
+    app: alertmanager
+  ports:
+    - port: 9093
+      targetPort: 9093
+  type: ClusterIP
+
+# ── Grafana ───────────────────────────────────────────────────────────────────
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: grocery-tracker
+data:
+  prometheus-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus:9090
+        access: proxy
+        isDefault: true
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: grocery-tracker
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: grocery-tracker-dashboards
+        type: file
+        disableDeletion: true
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-http
+  namespace: grocery-tracker
+data:
+  http-overview.json: |
+    {
+      "title": "Grocery Tracker — HTTP Overview",
+      "uid": "grocery-tracker-http",
+      "tags": ["grocery-tracker"],
+      "timezone": "browser",
+      "schemaVersion": 36,
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Request Rate (req/s)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "datasource": "Prometheus",
+          "targets": [{"expr": "sum(rate(grocery_tracker_http_request_duration_seconds_count[5m])) by (route)", "legendFormat": "{{route}}"}]
+        },
+        {
+          "id": 2,
+          "title": "Error Rate (%)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "datasource": "Prometheus",
+          "targets": [{"expr": "sum(rate(grocery_tracker_http_request_duration_seconds_count{status_code=~'5..'}[5m])) / sum(rate(grocery_tracker_http_request_duration_seconds_count[5m])) * 100", "legendFormat": "5xx error rate %"}]
+        },
+        {
+          "id": 3,
+          "title": "p50 / p95 / p99 Latency (s)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "datasource": "Prometheus",
+          "targets": [
+            {"expr": "histogram_quantile(0.50, rate(grocery_tracker_http_request_duration_seconds_bucket[5m]))", "legendFormat": "p50"},
+            {"expr": "histogram_quantile(0.95, rate(grocery_tracker_http_request_duration_seconds_bucket[5m]))", "legendFormat": "p95"},
+            {"expr": "histogram_quantile(0.99, rate(grocery_tracker_http_request_duration_seconds_bucket[5m]))", "legendFormat": "p99"}
+          ]
+        },
+        {
+          "id": 4,
+          "title": "API Up",
+          "type": "stat",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "datasource": "Prometheus",
+          "targets": [{"expr": "up{job='grocery-tracker-api'}", "legendFormat": "api"}],
+          "options": {
+            "colorMode": "background",
+            "thresholds": {"steps": [{"color": "red", "value": 0}, {"color": "green", "value": 1}]}
+          }
+        }
+      ]
+    }
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-nodejs
+  namespace: grocery-tracker
+data:
+  nodejs-overview.json: |
+    {
+      "title": "Grocery Tracker — Node.js Runtime",
+      "uid": "grocery-tracker-nodejs",
+      "tags": ["grocery-tracker", "nodejs"],
+      "timezone": "browser",
+      "schemaVersion": 36,
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Heap Used (bytes)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "datasource": "Prometheus",
+          "targets": [{"expr": "grocery_tracker_nodejs_heap_size_used_bytes", "legendFormat": "heap used"}]
+        },
+        {
+          "id": 2,
+          "title": "Heap Usage (%)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "datasource": "Prometheus",
+          "targets": [{"expr": "grocery_tracker_nodejs_heap_size_used_bytes / grocery_tracker_nodejs_heap_size_total_bytes * 100", "legendFormat": "heap %"}]
+        },
+        {
+          "id": 3,
+          "title": "Event Loop Lag (s)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "datasource": "Prometheus",
+          "targets": [{"expr": "grocery_tracker_nodejs_eventloop_lag_seconds", "legendFormat": "event loop lag"}]
+        },
+        {
+          "id": 4,
+          "title": "Active Handles & Requests",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "datasource": "Prometheus",
+          "targets": [
+            {"expr": "grocery_tracker_nodejs_active_handles_total", "legendFormat": "active handles"},
+            {"expr": "grocery_tracker_nodejs_active_requests_total", "legendFormat": "active requests"}
+          ]
+        }
+      ]
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: grocery-tracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:10.2.0
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "admin"
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboard-http
+              mountPath: /var/lib/grafana/dashboards/http-overview.json
+              subPath: http-overview.json
+            - name: dashboard-nodejs
+              mountPath: /var/lib/grafana/dashboards/nodejs-overview.json
+              subPath: nodejs-overview.json
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "300m", memory: "512Mi" }
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboard-http
+          configMap:
+            name: grafana-dashboard-http
+        - name: dashboard-nodejs
+          configMap:
+            name: grafana-dashboard-nodejs
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: grocery-tracker
+spec:
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP

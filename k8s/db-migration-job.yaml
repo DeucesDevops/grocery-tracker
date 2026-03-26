@@ -1,0 +1,28 @@
+# One-off Prisma migration Job — triggered by CI before each rollout.
+# Intentionally excluded from kustomization.yaml (not a long-running resource).
+#
+# The deploy pipeline replaces the image tag at runtime:
+#   sed "s|grocery-tracker-api:latest|<ECR>:sha-<SHA>|g" k8s/db-migration-job.yaml | kubectl apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prisma-migrate
+  namespace: grocery-tracker
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: grocery-tracker-api:latest
+          command: ["node_modules/.bin/prisma", "migrate", "deploy"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: grocery-tracker-secrets
+                  key: DATABASE_URL
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits:   { cpu: "250m", memory: "256Mi" }

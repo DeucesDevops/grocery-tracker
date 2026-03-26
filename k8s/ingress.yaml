@@ -1,0 +1,44 @@
+# AWS ALB Ingress — requires the AWS Load Balancer Controller installed on the cluster.
+#
+# Install:
+#   helm repo add eks https://aws.github.io/eks-charts
+#   helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+#     -n kube-system \
+#     --set clusterName=<EKS_CLUSTER_NAME> \
+#     --set serviceAccount.create=false \
+#     --set serviceAccount.name=aws-load-balancer-controller
+#
+# Replace yourdomain.com with your actual domain.
+# The ACM certificate ARN must match the domain.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grocery-tracker
+  namespace: grocery-tracker
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80,"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/REPLACE_ME
+    alb.ingress.kubernetes.io/healthcheck-path: /api/health
+spec:
+  rules:
+    - host: grocery-tracker.yourdomain.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 5001
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 3005
